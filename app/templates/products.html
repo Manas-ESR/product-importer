@@ -1,0 +1,265 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2>Products</h2>
+  <form id="filter-form" style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px;">
+    <input type="text" id="filter-sku" placeholder="SKU" />
+    <input type="text" id="filter-name" placeholder="Name" />
+    <input type="text" id="filter-description" placeholder="Description" />
+    <select id="filter-active">
+      <option value="">Any status</option>
+      <option value="true">Active</option>
+      <option value="false">Inactive</option>
+    </select>
+    <button type="submit" class="secondary">Apply</button>
+  </form>
+
+  <div style="margin-bottom: 8px;">
+    <button id="delete-all-btn" class="secondary" style="background-color: #fee2e2; color:#991b1b; border-color:#fecaca;">
+      Delete All Products
+    </button>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>SKU</th>
+        <th>Name</th>
+        <th>Description</th>
+        <th>Price</th>
+        <th>Active</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="products-body">
+      <tr><td colspan="6">Loading...</td></tr>
+    </tbody>
+  </table>
+
+  <div style="margin-top: 8px; display:flex; align-items:center; gap:8px;">
+    <button id="prev-page" class="secondary">Previous</button>
+    <span id="page-info"></span>
+    <button id="next-page" class="secondary">Next</button>
+  </div>
+</div>
+
+<div class="card">
+  <h3 id="form-title">Create / Edit Product</h3>
+  <form id="product-form">
+    <input type="hidden" id="product-id" />
+    <div style="display:flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px;">
+      <div>
+        <label>SKU<br><input type="text" id="sku-input" required /></label>
+      </div>
+      <div>
+        <label>Name<br><input type="text" id="name-input" required /></label>
+      </div>
+      <div>
+        <label>Price<br><input type="number" step="0.01" id="price-input" /></label>
+      </div>
+      <div>
+        <label>Active<br><input type="checkbox" id="active-input" checked /></label>
+      </div>
+    </div>
+    <div style="margin-bottom: 8px;">
+      <label>Description<br>
+        <textarea id="description-input" rows="2" style="width:100%;"></textarea>
+      </label>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <button type="submit">Save</button>
+      <button type="button" id="reset-form" class="secondary">Clear</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let currentPage = 1;
+  let totalPages = 1;
+  const pageSize = 20;
+
+  const bodyEl = document.getElementById('products-body');
+  const pageInfo = document.getElementById('page-info');
+
+  async function loadProducts(page) {
+    currentPage = page;
+
+    const params = new URLSearchParams();
+    params.set('page', page);
+    params.set('page_size', pageSize);
+
+    const sku = document.getElementById('filter-sku').value.trim();
+    const name = document.getElementById('filter-name').value.trim();
+    const description = document.getElementById('filter-description').value.trim();
+    const active = document.getElementById('filter-active').value;
+
+    if (sku) params.set('sku', sku);
+    if (name) params.set('name', name);
+    if (description) params.set('description', description);
+    if (active) params.set('active', active);
+
+    bodyEl.innerHTML = '<tr><td colspan="6">Loading...</td></tr>';
+
+    const resp = await fetch('/api/products?' + params.toString());
+    if (!resp.ok) {
+      bodyEl.innerHTML = '<tr><td colspan="6">Failed to load products</td></tr>';
+      return;
+    }
+    const data = await resp.json();
+    const items = data.items;
+    const total = data.total;
+    totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+    if (!items.length) {
+      bodyEl.innerHTML = '<tr><td colspan="6">No products found</td></tr>';
+    } else {
+      bodyEl.innerHTML = '';
+      for (const p of items) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${p.sku}</td>
+          <td>${p.name}</td>
+          <td>${p.description || ''}</td>
+          <td>${p.price != null ? p.price : ''}</td>
+          <td>${p.active ? '<span class="badge green">Active</span>' : '<span class="badge red">Inactive</span>'}</td>
+          <td>
+            <button type="button" data-id="${p.id}" class="edit-btn secondary">Edit</button>
+            <button type="button" data-id="${p.id}" class="delete-btn secondary">Delete</button>
+          </td>
+        `;
+        bodyEl.appendChild(tr);
+      }
+    }
+
+    pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
+
+    document.querySelectorAll('.edit-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-id');
+        const row = btn.closest('tr');
+        const cells = row.children;
+        document.getElementById('product-id').value = id;
+        document.getElementById('sku-input').value = cells[0].textContent.trim();
+        document.getElementById('name-input').value = cells[1].textContent.trim();
+        document.getElementById('description-input').value = cells[2].textContent.trim();
+        document.getElementById('price-input').value = cells[3].textContent.trim();
+        const isActive = cells[4].textContent.includes('Active');
+        document.getElementById('active-input').checked = isActive;
+        document.getElementById('form-title').textContent = 'Edit Product';
+      });
+    });
+
+    document.querySelectorAll('.delete-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.getAttribute('data-id');
+        if (!confirm('Delete this product?')) return;
+        const resp = await fetch('/api/products/' + id, { method: 'DELETE' });
+        if (resp.ok) {
+          showToast('Product deleted', 2000);
+          loadProducts(currentPage);
+        } else {
+          showToast('Failed to delete', 3000);
+        }
+      });
+    });
+  }
+
+  document.getElementById('filter-form').addEventListener('submit', e => {
+    e.preventDefault();
+    loadProducts(1);
+  });
+
+  document.getElementById('prev-page').addEventListener('click', () => {
+    if (currentPage > 1) loadProducts(currentPage - 1);
+  });
+  document.getElementById('next-page').addEventListener('click', () => {
+    if (currentPage < totalPages) loadProducts(currentPage + 1);
+  });
+
+  document.getElementById('delete-all-btn').addEventListener('click', async () => {
+    if (!confirm('Are you sure? This cannot be undone.')) return;
+    const resp = await fetch('/api/products', { method: 'DELETE' });
+    if (resp.ok) {
+      const data = await resp.json();
+      showToast(`Deleted ${data.deleted} products`, 3000);
+      loadProducts(1);
+    } else {
+      showToast('Failed to delete all products', 4000);
+    }
+  });
+
+  const productForm = document.getElementById('product-form');
+  productForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('product-id').value;
+    const sku = document.getElementById('sku-input').value.trim();
+    const name = document.getElementById('name-input').value.trim();
+    const description = document.getElementById('description-input').value.trim();
+    const priceVal = document.getElementById('price-input').value;
+    const active = document.getElementById('active-input').checked;
+
+    if (!sku || !name) {
+      alert('SKU and Name are required');
+      return;
+    }
+
+    const payload = {
+      sku,
+      name,
+      description: description || null,
+      price: priceVal ? parseFloat(priceVal) : null,
+      active,
+    };
+
+    try {
+      let resp;
+      if (id) {
+        resp = await fetch('/api/products/' + id, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: payload.name,
+            description: payload.description,
+            price: payload.price,
+            active: payload.active,
+          }),
+        });
+      } else {
+        resp = await fetch('/api/products', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      }
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.detail || 'Save failed');
+      }
+      showToast('Product saved', 3000);
+      resetForm();
+      loadProducts(currentPage);
+    } catch (err) {
+      console.error(err);
+      showToast(err.message, 4000);
+    }
+  });
+
+  function resetForm() {
+    document.getElementById('product-id').value = '';
+    document.getElementById('sku-input').value = '';
+    document.getElementById('name-input').value = '';
+    document.getElementById('description-input').value = '';
+    document.getElementById('price-input').value = '';
+    document.getElementById('active-input').checked = true;
+    document.getElementById('form-title').textContent = 'Create / Edit Product';
+  }
+
+  document.getElementById('reset-form').addEventListener('click', () => {
+    resetForm();
+  });
+
+  loadProducts(1);
+</script>
+{% endblock %}

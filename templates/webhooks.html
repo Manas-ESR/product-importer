@@ -1,0 +1,235 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+  <h2>Webhooks</h2>
+  <p>
+    Configure webhooks to be called on events like
+    <code>product.created</code>,
+    <code>product.updated</code>,
+    <code>product.deleted</code>,
+    <code>product.import.completed</code>.
+  </p>
+
+  <div class="card">
+    <h3>Configured Webhooks</h3>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>URL</th>
+          <th>Event</th>
+          <th>Enabled</th>
+          <th>Last Test</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="webhook-rows">
+        <tr>
+          <td colspan="6">Loading...</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card" style="margin-top: 24px;">
+    <h3>Create / Edit Webhook</h3>
+    <form id="webhook-form" onsubmit="return false;">
+      <div class="form-row">
+        <label for="wh-url">URL</label>
+        <input id="wh-url" type="text" class="input" />
+      </div>
+      <div class="form-row">
+        <label for="wh-event">Event type</label>
+        <input id="wh-event" type="text" class="input" value="product.created" />
+      </div>
+      <div class="form-row">
+        <label for="wh-enabled">Enabled</label>
+        <input id="wh-enabled" type="checkbox" checked />
+      </div>
+      <div class="form-actions">
+        <button type="button" id="wh-save" class="btn btn-primary">Save</button>
+        <button type="button" id="wh-clear" class="btn">Clear</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var rowsEl = document.getElementById('webhook-rows');
+  var urlInput = document.getElementById('wh-url');
+  var eventInput = document.getElementById('wh-event');
+  var enabledInput = document.getElementById('wh-enabled');
+  var saveBtn = document.getElementById('wh-save');
+  var clearBtn = document.getElementById('wh-clear');
+
+  var editingId = null;
+
+  function setRowsLoading() {
+    rowsEl.innerHTML = '<tr><td colspan="6">Loading...</td></tr>';
+  }
+
+  function setRowsEmpty() {
+    rowsEl.innerHTML = '<tr><td colspan="6">No webhooks configured.</td></tr>';
+  }
+
+  function showAlert(message) {
+    alert(message);
+  }
+
+  function loadWebhooks() {
+    setRowsLoading();
+    fetch('/api/webhooks')
+      .then(function (resp) {
+        if (!resp.ok) {
+          console.error('Failed to load webhooks', resp.status);
+          setRowsEmpty();
+          return [];
+        }
+        return resp.json();
+      })
+      .then(function (data) {
+        if (!data || data.length === 0) {
+          setRowsEmpty();
+          return;
+        }
+        rowsEl.innerHTML = '';
+        data.forEach(function (hook) {
+          var tr = document.createElement('tr');
+
+          var last = '-';
+          if (hook.last_status_code !== null && hook.last_status_code !== undefined) {
+            last = String(hook.last_status_code);
+            if (hook.last_response_ms !== null && hook.last_response_ms !== undefined) {
+              last += ' (' + hook.last_response_ms + ' ms)';
+            }
+          }
+
+          tr.innerHTML =
+            '<td>' + hook.id + '</td>' +
+            '<td>' + hook.url + '</td>' +
+            '<td>' + hook.event_type + '</td>' +
+            '<td>' + (hook.enabled ? 'Yes' : 'No') + '</td>' +
+            '<td>' + last + '</td>' +
+            '<td>' +
+              '<button type="button" class="btn btn-sm" onclick="editWebhook(' + hook.id + ')">Edit</button> ' +
+              '<button type="button" class="btn btn-sm" onclick="testWebhook(' + hook.id + ')">Test</button> ' +
+              '<button type="button" class="btn btn-sm" onclick="deleteWebhook(' + hook.id + ')">Delete</button>' +
+            '</td>';
+
+          rowsEl.appendChild(tr);
+        });
+      })
+      .catch(function (err) {
+        console.error('Error loading webhooks', err);
+        setRowsEmpty();
+      });
+  }
+
+  function clearForm() {
+    editingId = null;
+    urlInput.value = '';
+    eventInput.value = 'product.created';
+    enabledInput.checked = true;
+  }
+
+  function saveWebhook() {
+    var url = urlInput.value.trim();
+    var eventType = eventInput.value.trim();
+    var enabled = enabledInput.checked ? true : false;
+
+    if (!url || !eventType) {
+      showAlert('URL and event type are required');
+      return;
+    }
+
+    var payload = {
+      url: url,
+      event_type: eventType,
+      enabled: enabled
+    };
+
+    var options = {
+      method: editingId === null ? 'POST' : 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    };
+
+    var endpoint = '/api/webhooks';
+    if (editingId !== null) {
+      endpoint = '/api/webhooks/' + editingId;
+    }
+
+    fetch(endpoint, options)
+      .then(function (resp) {
+        if (!resp.ok) {
+          console.error('Save failed', resp.status);
+          showAlert('Save failed (' + resp.status + ')');
+          return;
+        }
+        showAlert('Saved');
+        clearForm();
+        loadWebhooks();
+      })
+      .catch(function (err) {
+        console.error('Error saving webhook', err);
+        showAlert('Save failed');
+      });
+  }
+
+  window.editWebhook = function (id) {
+    var rows = rowsEl.querySelectorAll('tr');
+    for (var i = 0; i < rows.length; i++) {
+      var cells = rows[i].children;
+      if (!cells.length) continue;
+      var cellId = parseInt(cells[0].textContent, 10);
+      if (cellId === id) {
+        editingId = id;
+        urlInput.value = cells[1].textContent.trim();
+        eventInput.value = cells[2].textContent.trim();
+        enabledInput.checked = cells[3].textContent.trim().toLowerCase() === 'yes';
+        break;
+      }
+    }
+  };
+
+  window.deleteWebhook = function (id) {
+    if (!confirm('Delete this webhook?')) return;
+    fetch('/api/webhooks/' + id, { method: 'DELETE' })
+      .then(function (resp) {
+        if (!resp.ok) {
+          showAlert('Delete failed (' + resp.status + ')');
+          return;
+        }
+        loadWebhooks();
+      })
+      .catch(function (err) {
+        console.error('Error deleting webhook', err);
+        showAlert('Delete failed');
+      });
+  };
+
+  window.testWebhook = function (id) {
+    fetch('/api/webhooks/' + id + '/test', { method: 'POST' })
+      .then(function (resp) {
+        if (!resp.ok) {
+          showAlert('Test failed (' + resp.status + ')');
+          return;
+        }
+        showAlert('Test triggered');
+        setTimeout(loadWebhooks, 1000);
+      })
+      .catch(function (err) {
+        console.error('Error testing webhook', err);
+        showAlert('Test failed');
+      });
+  };
+
+  saveBtn.addEventListener('click', saveWebhook);
+  clearBtn.addEventListener('click', clearForm);
+
+  loadWebhooks();
+});
+</script>
+{% endblock %}

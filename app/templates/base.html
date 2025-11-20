@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Product Importer</title>
+    <meta charset="utf-8" />
+    <style>
+      body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; padding: 0; background-color: #f5f5f5; }
+      header { background-color: #1f2933; color: white; padding: 12px 20px; display: flex; gap: 20px; align-items: center; }
+      header a { color: white; text-decoration: none; font-weight: 500; }
+      header a.active { text-decoration: underline; }
+      main { padding: 20px; max-width: 1000px; margin: 0 auto; }
+      .card { background: white; border-radius: 8px; padding: 16px 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 20px; }
+      button { cursor: pointer; padding: 6px 12px; border-radius: 4px; border: 1px solid #d0d0d0; background-color: #2563eb; color: white; font-size: 14px; }
+      button.secondary { background-color: #e5e7eb; color: #111827; }
+      input, select, textarea { padding: 4px 6px; border-radius: 4px; border: 1px solid #d0d0d0; font-size: 14px; }
+      table { width: 100%; border-collapse: collapse; font-size: 14px; }
+      th, td { padding: 6px 8px; border-bottom: 1px solid #e5e7eb; text-align: left; }
+      th { background-color: #f3f4f6; }
+      .badge { display: inline-block; padding: 2px 6px; border-radius: 999px; font-size: 12px; }
+      .badge.green { background-color: #dcfce7; color: #166534; }
+      .badge.red { background-color: #fee2e2; color: #991b1b; }
+      .toast { position: fixed; bottom: 16px; right: 16px; background: #111827; color: white; padding: 8px 12px; border-radius: 6px; font-size: 14px; display: none; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div style="font-weight: 600;">Product Importer</div>
+      <a href="/" class="{{ 'active' if request.url.path == '/' else '' }}">Upload</a>
+      <a href="/products" class="{{ 'active' if request.url.path.startswith('/products') else '' }}">Products</a>
+      <a href="/webhooks" class="{{ 'active' if request.url.path.startswith('/webhooks') else '' }}">Webhooks</a>
+    </header>
+    <main>
+      {% block content %}{% endblock %}
+    </main>
+    <div id="toast" class="toast"></div>
+    <script>
+      function showToast(message, timeoutMs) {
+        const el = document.getElementById('toast');
+        el.textContent = message;
+        el.style.display = 'block';
+        setTimeout(() => { el.style.display = 'none'; }, timeoutMs || 3000);
+      }
+    </script>
+    {% block scripts %}{% endblock %}
+  </body>
+</html>

@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2>Upload Products CSV</h2>
+  <p>Upload a CSV file with columns like <code>sku,name,description,price</code>. Up to ~500,000 rows.</p>
+
+  <form id="upload-form">
+    <input type="file" id="csv-file" accept=".csv" required />
+    <button type="submit">Upload</button>
+  </form>
+
+  <div id="upload-status" style="margin-top: 16px; display: none;">
+    <div style="margin-bottom: 6px;">
+      <strong>Status:</strong> <span id="status-text">Preparing</span>
+    </div>
+    <div style="width: 100%; background-color: #e5e7eb; border-radius: 999px; overflow: hidden; height: 16px;">
+      <div id="progress-bar-fill" style="height: 100%; width: 0%; background-color: #22c55e;"></div>
+    </div>
+    <div style="margin-top: 4px; font-size: 13px;">
+      <span id="progress-percent">0%</span>
+      <span id="progress-counts"></span>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const form = document.getElementById('upload-form');
+  const fileInput = document.getElementById('csv-file');
+  const statusBox = document.getElementById('upload-status');
+  const statusText = document.getElementById('status-text');
+  const progressFill = document.getElementById('progress-bar-fill');
+  const progressPercent = document.getElementById('progress-percent');
+  const progressCounts = document.getElementById('progress-counts');
+
+  let pollIntervalId = null;
+  let currentJobId = null;
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!fileInput.files.length) {
+      alert('Please choose a CSV file');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+
+    try {
+      statusBox.style.display = 'block';
+      statusText.textContent = 'Uploading...';
+      progressFill.style.width = '0%';
+      progressPercent.textContent = '0%';
+      progressCounts.textContent = '';
+
+      const resp = await fetch('/api/uploads', {
+        method: 'POST',
+        body: formData,
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.detail || 'Upload failed');
+      }
+      const data = await resp.json();
+      currentJobId = data.job_id;
+      statusText.textContent = 'Queued...';
+
+      if (pollIntervalId) clearInterval(pollIntervalId);
+      pollIntervalId = setInterval(checkStatus, 2000);
+    } catch (err) {
+      console.error(err);
+      showToast('Upload failed: ' + err.message, 4000);
+      statusText.textContent = 'Failed';
+    }
+  });
+
+  async function checkStatus() {
+    if (!currentJobId) return;
+    try {
+      const resp = await fetch(`/api/uploads/${currentJobId}`);
+      if (!resp.ok) {
+        throw new Error('Status check failed');
+      }
+      const data = await resp.json();
+
+      statusText.textContent = data.status;
+      if (data.percentage !== null) {
+        progressFill.style.width = data.percentage + '%';
+        progressPercent.textContent = data.percentage + '%';
+      }
+      if (data.total_rows !== null) {
+        progressCounts.textContent = ` (${data.processed_rows}/${data.total_rows} rows)`;
+      }
+
+      if (data.status === 'completed') {
+        clearInterval(pollIntervalId);
+        showToast('Import completed successfully', 4000);
+      } else if (data.status === 'failed') {
+        clearInterval(pollIntervalId);
+        const msg = data.error_message || 'Import failed';
+        showToast('Import failed: ' + msg, 6000);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
+</script>
+{% endblock %}

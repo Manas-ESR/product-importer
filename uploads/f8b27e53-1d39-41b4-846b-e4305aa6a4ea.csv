@@ -1,0 +1,4 @@
+sku,name,description,price
+ABC123,Product A,First test product,9.99
+abc123,Product A Updated,Same SKU different case should overwrite,10.99
+XYZ999,Product B,Second product,15.50

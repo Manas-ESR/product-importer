@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2>Webhooks</h2>
+  <p>Configure webhooks to be called on events like <code>product.created</code>, <code>product.updated</code>, <code>product.deleted</code>, <code>product.import.completed</code>.</p>
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>URL</th>
+        <th>Event</th>
+        <th>Enabled</th>
+        <th>Last Test</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="webhooks-body">
+      <tr><td colspan="6">Loading...</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="card">
+  <h3 id="wh-form-title">Create / Edit Webhook</h3>
+  <form id="webhook-form">
+    <input type="hidden" id="wh-id" />
+    <div style="margin-bottom:8px;">
+      <label>URL<br>
+        <input type="url" id="wh-url" required style="width:100%;" />
+      </label>
+    </div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
+      <div>
+        <label>Event type<br>
+          <input type="text" id="wh-event" placeholder="product.created" required />
+        </label>
+      </div>
+      <div>
+        <label>Enabled<br>
+          <input type="checkbox" id="wh-enabled" checked />
+        </label>
+      </div>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <button type="submit">Save</button>
+      <button type="button" id="wh-reset" class="secondary">Clear</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const whBody = document.getElementById('webhooks-body');
+
+  async function loadWebhooks() {
+    whBody.innerHTML = '<tr><td colspan="6">Loading...</td></tr>';
+    const resp = await fetch('/api/webhooks');
+    if (!resp.ok) {
+      whBody.innerHTML = '<tr><td colspan="6">Failed to load webhooks</td></tr>';
+      return;
+    }
+    const hooks = await resp.json();
+    if (!hooks.length) {
+      whBody.innerHTML = '<tr><td colspan="6">No webhooks configured</td></tr>';
+      return;
+    }
+    whBody.innerHTML = '';
+    for (const wh of hooks) {
+      const tr = document.createElement('tr');
+      const lastTest = wh.last_test_status_code
+        ? `${wh.last_test_status_code} (${wh.last_test_response_time_ms || 0} ms)`
+        : (wh.last_test_error ? \`Error: \${wh.last_test_error}\` : '—');
+      tr.innerHTML = `
+        <td>${wh.id}</td>
+        <td>${wh.url}</td>
+        <td>${wh.event_type}</td>
+        <td>${wh.enabled ? '<span class="badge green">Yes</span>' : '<span class="badge red">No</span>'}</td>
+        <td>${lastTest}</td>
+        <td>
+          <button type="button" data-id="${wh.id}" class="wh-edit secondary">Edit</button>
+          <button type="button" data-id="${wh.id}" class="wh-test secondary">Test</button>
+          <button type="button" data-id="${wh.id}" class="wh-delete secondary">Delete</button>
+        </td>
+      `;
+      whBody.appendChild(tr);
+    }
+
+    document.querySelectorAll('.wh-edit').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-id');
+        const row = btn.closest('tr');
+        const cells = row.children;
+        document.getElementById('wh-id').value = id;
+        document.getElementById('wh-url').value = cells[1].textContent.trim();
+        document.getElementById('wh-event').value = cells[2].textContent.trim();
+        const enabled = cells[3].textContent.includes('Yes');
+        document.getElementById('wh-enabled').checked = enabled;
+        document.getElementById('wh-form-title').textContent = 'Edit Webhook';
+      });
+    });
+
+    document.querySelectorAll('.wh-test').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.getAttribute('data-id');
+        const resp = await fetch('/api/webhooks/' + id + '/test', { method: 'POST' });
+        if (resp.ok) {
+          showToast('Test triggered', 2000);
+          setTimeout(loadWebhooks, 2000);
+        } else {
+          showToast('Failed to trigger test', 3000);
+        }
+      });
+    });
+
+    document.querySelectorAll('.wh-delete').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.getAttribute('data-id');
+        if (!confirm('Delete this webhook?')) return;
+        const resp = await fetch('/api/webhooks/' + id, { method: 'DELETE' });
+        if (resp.ok) {
+          showToast('Webhook deleted', 2000);
+          loadWebhooks();
+        } else {
+          showToast('Failed to delete webhook', 3000);
+        }
+      });
+    });
+  }
+
+  const whForm = document.getElementById('webhook-form');
+  whForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('wh-id').value;
+    const url = document.getElementById('wh-url').value.trim();
+    const eventType = document.getElementById('wh-event').value.trim();
+    const enabled = document.getElementById('wh-enabled').checked;
+    if (!url || !eventType) {
+      alert('URL and event type are required');
+      return;
+    }
+    const payload = { url, event_type: eventType, enabled };
+    let resp;
+    if (id) {
+      resp = await fetch('/api/webhooks/' + id, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+    } else {
+      resp = await fetch('/api/webhooks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+    }
+    if (resp.ok) {
+      showToast('Webhook saved', 2000);
+      resetWebhookForm();
+      loadWebhooks();
+    } else {
+      const err = await resp.json().catch(() => ({}));
+      showToast(err.detail || 'Failed to save webhook', 4000);
+    }
+  });
+
+  function resetWebhookForm() {
+    document.getElementById('wh-id').value = '';
+    document.getElementById('wh-url').value = '';
+    document.getElementById('wh-event').value = '';
+    document.getElementById('wh-enabled').checked = true;
+    document.getElementById('wh-form-title').textContent = 'Create / Edit Webhook';
+  }
+
+  document.getElementById('wh-reset').addEventListener('click', () => {
+    resetWebhookForm();
+  });
+
+  loadWebhooks();
+</script>
+{% endblock %}

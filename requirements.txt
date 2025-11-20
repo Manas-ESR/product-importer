@@ -1,0 +1,12 @@
+fastapi
+uvicorn[standard]
+SQLAlchemy>=2.0
+psycopg2-binary
+alembic
+celery
+redis
+python-dotenv
+Jinja2
+requests
+python-multipart
+requests
