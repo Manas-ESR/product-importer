@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Products</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 1000px;
+      margin: 40px auto;
+      padding: 0 16px 40px;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+    nav a {
+      margin-right: 12px;
+      text-decoration: none;
+      color: #0366d6;
+    }
+    nav a:last-child {
+      margin-right: 0;
+    }
+    .card {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 16px 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+      margin-bottom: 24px;
+      background: #fff;
+    }
+    h1 {
+      font-size: 28px;
+      margin: 0;
+    }
+    h2 {
+      font-size: 18px;
+      margin: 0 0 12px 0;
+    }
+    .filters {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .filters label {
+      font-size: 12px;
+      color: #555;
+      display: block;
+      margin-bottom: 4px;
+    }
+    .filters input,
+    .filters select {
+      width: 100%;
+      padding: 6px 8px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      font-size: 13px;
+    }
+    .actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    button {
+      cursor: pointer;
+      padding: 6px 12px;
+      border-radius: 4px;
+      border: 1px solid #0366d6;
+      background: #0366d6;
+      color: white;
+      font-weight: 500;
+      font-size: 13px;
+    }
+    button.secondary {
+      border-color: #ccc;
+      background: white;
+      color: #333;
+    }
+    button.danger {
+      border-color: #b00020;
+      background: #b00020;
+    }
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th, td {
+      border-bottom: 1px solid #eee;
+      padding: 8px 6px;
+      text-align: left;
+      vertical-align: middle;
+    }
+    th {
+      background: #fafafa;
+      font-weight: 600;
+      font-size: 12px;
+      color: #555;
+    }
+    tr:nth-child(even) td {
+      background: #fcfcfc;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 999px;
+      font-size: 11px;
+    }
+    .badge.active {
+      background: #e6f4ea;
+      color: #137333;
+    }
+    .badge.inactive {
+      background: #fce8e6;
+      color: #b00020;
+    }
+    .pagination {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 12px;
+      font-size: 13px;
+    }
+    .pagination button {
+      padding: 4px 10px;
+      font-size: 12px;
+    }
+    #status {
+      margin-top: 8px;
+      font-size: 13px;
+    }
+    #status.error {
+      color: #b00020;
+    }
+    #status.success {
+      color: #0c7a0c;
+    }
+    /* Edit form card */
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px 16px;
+      margin-bottom: 12px;
+    }
+    .form-grid-full {
+      grid-column: 1 / -1;
+    }
+    .form-grid label {
+      font-size: 12px;
+      color: #555;
+      display: block;
+      margin-bottom: 4px;
+    }
+    .form-grid input,
+    .form-grid textarea {
+      width: 100%;
+      padding: 6px 8px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      font-size: 13px;
+    }
+    .form-grid textarea {
+      resize: vertical;
+      min-height: 60px;
+    }
+    .form-footer {
+      display: flex;
+      justify-content: flex-start;
+      gap: 8px;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Products</h1>
+    <nav>
+      <a href="/upload">Upload</a>
+      <a href="/products">Products</a>
+      <a href="/webhooks">Webhooks</a>
+    </nav>
+  </header>
+
+  <!-- List + filters -->
+  <section class="card">
+    <div class="filters">
+      <div>
+        <label for="filter-sku">SKU</label>
+        <input id="filter-sku" type="text" placeholder="Filter by SKU" />
+      </div>
+      <div>
+        <label for="filter-name">Name</label>
+        <input id="filter-name" type="text" placeholder="Filter by name" />
+      </div>
+      <div>
+        <label for="filter-description">Description</label>
+        <input id="filter-description" type="text" placeholder="Filter by description" />
+      </div>
+      <div>
+        <label for="filter-active">Active</label>
+        <select id="filter-active">
+          <option value="">All</option>
+          <option value="true">Active</option>
+          <option value="false">Inactive</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="actions">
+      <div>
+        <button id="filter-btn" class="secondary">Apply Filters</button>
+        <button id="clear-btn" class="secondary">Clear</button>
+      </div>
+      <div>
+        <button id="new-btn">New Product</button>
+        <button id="bulk-delete-btn" class="danger">Delete All Products</button>
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>SKU</th>
+          <th>Name</th>
+          <th>Description</th>
+          <th>Price</th>
+          <th>Active</th>
+          <th style="width: 140px;">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="products-body">
+        <!-- Filled by JS -->
+      </tbody>
+    </table>
+
+    <div class="pagination">
+      <div>
+        <button id="prev-page-btn" class="secondary">Prev</button>
+        <button id="next-page-btn" class="secondary">Next</button>
+      </div>
+      <div>
+        Page <span id="page-label">1</span>
+        · Total <span id="total-label">0</span> products
+      </div>
+    </div>
+
+    <div id="status"></div>
+  </section>
+
+  <!-- Inline create/edit form -->
+  <section class="card" id="edit-card" style="display: none;">
+    <h2 id="edit-title">New Product</h2>
+    <div class="form-grid">
+      <div>
+        <label for="form-sku">SKU</label>
+        <input id="form-sku" type="text" />
+      </div>
+      <div>
+        <label for="form-name">Name</label>
+        <input id="form-name" type="text" />
+      </div>
+      <div class="form-grid-full">
+        <label for="form-description">Description</label>
+        <textarea id="form-description"></textarea>
+      </div>
+      <div>
+        <label for="form-price">Price</label>
+        <input id="form-price" type="number" step="0.01" />
+      </div>
+      <div>
+        <label>
+          <input id="form-active" type="checkbox" checked />
+          Active
+        </label>
+      </div>
+    </div>
+    <div class="form-footer">
+      <button id="save-btn">Save</button>
+      <button id="clear-form-btn" type="button" class="secondary">Clear</button>
+    </div>
+  </section>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      var statusEl = document.getElementById("status");
+      var tbody = document.getElementById("products-body");
+      var pageLabel = document.getElementById("page-label");
+      var totalLabel = document.getElementById("total-label");
+      var prevBtn = document.getElementById("prev-page-btn");
+      var nextBtn = document.getElementById("next-page-btn");
+
+      var filterSku = document.getElementById("filter-sku");
+      var filterName = document.getElementById("filter-name");
+      var filterDescription = document.getElementById("filter-description");
+      var filterActive = document.getElementById("filter-active");
+      var filterBtn = document.getElementById("filter-btn");
+      var clearBtn = document.getElementById("clear-btn");
+
+      var newBtn = document.getElementById("new-btn");
+      var bulkDeleteBtn = document.getElementById("bulk-delete-btn");
+
+      var editCard = document.getElementById("edit-card");
+      var editTitle = document.getElementById("edit-title");
+      var formSku = document.getElementById("form-sku");
+      var formName = document.getElementById("form-name");
+      var formDescription = document.getElementById("form-description");
+      var formPrice = document.getElementById("form-price");
+      var formActive = document.getElementById("form-active");
+      var saveBtn = document.getElementById("save-btn");
+      var clearFormBtn = document.getElementById("clear-form-btn");
+
+      var currentPage = 1;
+      var pageSize = 20;
+      var currentTotal = 0;
+      var editingId = null;
+
+      function setStatus(message, type) {
+        statusEl.textContent = message || "";
+        statusEl.className = type || "";
+      }
+
+      function buildQuery() {
+        var params = [];
+        params.push("page=" + encodeURIComponent(currentPage));
+        params.push("page_size=" + encodeURIComponent(pageSize));
+        if (filterSku.value.trim()) {
+          params.push("sku=" + encodeURIComponent(filterSku.value.trim()));
+        }
+        if (filterName.value.trim()) {
+          params.push("name=" + encodeURIComponent(filterName.value.trim()));
+        }
+        if (filterDescription.value.trim()) {
+          params.push("description=" + encodeURIComponent(filterDescription.value.trim()));
+        }
+        if (filterActive.value) {
+          params.push("active=" + encodeURIComponent(filterActive.value));
+        }
+        return params.join("&");
+      }
+
+      function resetFilters() {
+        filterSku.value = "";
+        filterName.value = "";
+        filterDescription.value = "";
+        filterActive.value = "";
+        currentPage = 1;
+      }
+
+      function resetForm() {
+        editingId = null;
+        editTitle.textContent = "New Product";
+        formSku.disabled = false;
+        formSku.value = "";
+        formName.value = "";
+        formDescription.value = "";
+        formPrice.value = "";
+        formActive.checked = true;
+      }
+
+      function openNewForm() {
+        resetForm();
+        editCard.style.display = "block";
+      }
+
+      function openEditForm(p) {
+        editingId = p.id;
+        editTitle.textContent = "Edit Product";
+        formSku.value = p.sku;
+        formSku.disabled = true;  // keep SKU immutable in UI
+        formName.value = p.name;
+        formDescription.value = p.description || "";
+        formPrice.value = p.price;
+        formActive.checked = !!p.is_active;
+        editCard.style.display = "block";
+      }
+
+      function renderProducts(items, total) {
+        tbody.innerHTML = "";
+        for (var i = 0; i < items.length; i++) {
+          var p = items[i];
+          var tr = document.createElement("tr");
+
+          var tdSku = document.createElement("td");
+          tdSku.textContent = p.sku;
+          tr.appendChild(tdSku);
+
+          var tdName = document.createElement("td");
+          tdName.textContent = p.name;
+          tr.appendChild(tdName);
+
+          var tdDesc = document.createElement("td");
+          tdDesc.textContent = p.description || "";
+          tr.appendChild(tdDesc);
+
+          var tdPrice = document.createElement("td");
+          tdPrice.textContent = p.price;
+          tr.appendChild(tdPrice);
+
+          var tdActive = document.createElement("td");
+          var badge = document.createElement("span");
+          badge.className = "badge " + (p.is_active ? "active" : "inactive");
+          badge.textContent = p.is_active ? "Active" : "Inactive";
+          tdActive.appendChild(badge);
+          tr.appendChild(tdActive);
+
+          var tdActions = document.createElement("td");
+          var editButton = document.createElement("button");
+          editButton.textContent = "Edit";
+          editButton.className = "secondary";
+          editButton.style.marginRight = "6px";
+          editButton.addEventListener("click", (function (product) {
+            return function () {
+              openEditForm(product);
+            };
+          })(p));
+          tdActions.appendChild(editButton);
+
+          var deleteButton = document.createElement("button");
+          deleteButton.textContent = "Delete";
+          deleteButton.className = "danger";
+          deleteButton.addEventListener("click", (function (product) {
+            return function () {
+              deleteProduct(product.id);
+            };
+          })(p));
+          tdActions.appendChild(deleteButton);
+
+          tr.appendChild(tdActions);
+          tbody.appendChild(tr);
+        }
+
+        currentTotal = total;
+        pageLabel.textContent = String(currentPage);
+        totalLabel.textContent = String(total);
+      }
+
+      function loadProducts() {
+        setStatus("Loading products…", "");
+        var qs = buildQuery();
+        fetch("/api/products?" + qs)
+          .then(function (res) {
+            if (!res.ok) {
+              throw new Error("Failed to load products (" + res.status + ")");
+            }
+            return res.json();
+          })
+          .then(function (data) {
+            var items;
+            var total;
+            if (data && data.items) {
+              items = data.items;
+              total = typeof data.total === "number" ? data.total : data.items.length;
+            } else if (data && data.results) {
+              items = data.results;
+              total = typeof data.total === "number" ? data.total : data.results.length;
+            } else if (Object.prototype.toString.call(data) === "[object Array]") {
+              items = data;
+              total = data.length;
+            } else {
+              items = [];
+              total = 0;
+            }
+            renderProducts(items, total);
+            setStatus("", "");
+          })
+          .catch(function (err) {
+            console.error(err);
+            setStatus(err.message, "error");
+          });
+      }
+
+      function saveProduct() {
+        var payload = {
+          sku: formSku.value.trim(),
+          name: formName.value.trim(),
+          description: formDescription.value.trim(),
+          price: Number(formPrice.value),
+          is_active: formActive.checked
+        };
+
+        if (!payload.sku || !payload.name || !payload.price) {
+          setStatus("SKU, name and price are required.", "error");
+          return;
+        }
+
+        var url;
+        var method;
+        if (editingId === null) {
+          url = "/api/products";
+          method = "POST";
+        } else {
+          url = "/api/products/" + encodeURIComponent(editingId);
+          method = "PUT";
+        }
+
+        fetch(url, {
+          method: method,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        })
+          .then(function (res) {
+            if (!res.ok) {
+              return res.text().then(function (t) {
+                throw new Error("Save failed (" + res.status + "): " + t);
+              });
+            }
+          })
+          .then(function () {
+            setStatus("Product saved.", "success");
+            loadProducts();
+          })
+          .catch(function (err) {
+            console.error(err);
+            setStatus(err.message, "error");
+          });
+      }
+
+      function deleteProduct(id) {
+        if (!window.confirm("Delete this product?")) {
+          return;
+        }
+        fetch("/api/products/" + encodeURIComponent(id), { method: "DELETE" })
+          .then(function (res) {
+            if (!res.ok && res.status !== 204) {
+              throw new Error("Delete failed (" + res.status + ")");
+            }
+          })
+          .then(function () {
+            setStatus("Product deleted.", "success");
+            loadProducts();
+          })
+          .catch(function (err) {
+            console.error(err);
+            setStatus(err.message, "error");
+          });
+      }
+
+      function bulkDelete() {
+        if (!window.confirm("Delete ALL products? This cannot be undone.")) {
+          return;
+        }
+        fetch("/api/products", { method: "DELETE" })
+          .then(function (res) {
+            if (!res.ok && res.status !== 204) {
+              throw new Error("Bulk delete failed (" + res.status + ")");
+            }
+          })
+          .then(function () {
+            currentPage = 1;
+            setStatus("All products deleted.", "success");
+            loadProducts();
+          })
+          .catch(function (err) {
+            console.error(err);
+            setStatus(err.message, "error");
+          });
+      }
+
+      prevBtn.addEventListener("click", function () {
+        if (currentPage > 1) {
+          currentPage -= 1;
+          loadProducts();
+        }
+      });
+
+      nextBtn.addEventListener("click", function () {
+        var maxPage = currentTotal > 0 ? Math.ceil(currentTotal / pageSize) : 1;
+        if (currentPage < maxPage) {
+          currentPage += 1;
+          loadProducts();
+        }
+      });
+
+      filterBtn.addEventListener("click", function () {
+        currentPage = 1;
+        loadProducts();
+      });
+
+      clearBtn.addEventListener("click", function () {
+        resetFilters();
+        loadProducts();
+      });
+
+      newBtn.addEventListener("click", function () {
+        openNewForm();
+      });
+
+      bulkDeleteBtn.addEventListener("click", function () {
+        bulkDelete();
+      });
+
+      saveBtn.addEventListener("click", function () {
+        saveProduct();
+      });
+
+      clearFormBtn.addEventListener("click", function () {
+        resetForm();
+      });
+
+      loadProducts();
+    });
+  </script>
+</body>
+</html>
