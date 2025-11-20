@@ -19,5 +19,8 @@ COPY . .
 ENV PYTHONUNBUFFERED=1
 ENV PORT=8000
 
-# Default command: run the web app
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Ensure our start script is executable
+RUN chmod +x /app/start.sh
+
+# Run both Celery worker and Uvicorn from the same container
+CMD ["/app/start.sh"]
